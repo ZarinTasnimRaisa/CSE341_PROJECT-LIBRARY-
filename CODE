@@ -1,0 +1,291 @@
+.MODEL SMALL
+.STACK 100H
+.DATA
+; Welcome and Login Prompts
+WelcomePrompt DB ' WELCOME TO MUGGLE'S LIBRARY!', 0DH, 0AH, '$'
+LoginPrompt DB 'Enter Username (press any key): $'
+PasswordPrompt DB 'Enter Password (3 chars): $'
+SuccessLogin DB 0DH, 0AH, 'Login Successful!', 0DH, 0AH, '$'
+FailedLogin DB 0DH, 0AH, 'Login Failed. Exiting...', 0DH, 0AH, '$'
+; Book List with Categories
+BookList DB '0) HP and the Sorcerer''s Stone (Fantasy) PRICE: 70 TK', 0DH, 0AH,
+DB '1) HP and the Chamber of Secrets (Fantasy) PRICE: 45 TK', 0DH, 0AH,
+DB '2) HP and the Prisoner of Azkaban (Fantasy) PRICE: 85 TK', 0DH, 0AH,
+DB '3) HP and the Goblet of Fire (Fantasy) PRICE: 60 TK', 0DH, 0AH,
+DB '4) HP and the Order of the Phoenix (Fantasy) PRICE: 95 TK', 0DH, 0AH,
+DB '5) HP and the Half-Blood Prince (Fantasy) PRICE: 58 TK', 0DH, 0AH,
+DB '6) HP and the Deathly Hallows (Fantasy) PRICE: 80 TK', 0DH, 0AH,
+DB '7) HP: Fantastic Beasts (Companion) PRICE: 50 TK', 0DH, 0AH,
+DB '8) HP: Quidditch Through the Ages (Companion) PRICE: 60 TK', 0DH, 0AH,
+DB '9) HP: The Tales of Beedle the Bard (Companion) PRICE: 99 TK', 0DH, 0AH, '$'
+; Pricing and Book Management
+StorePrice DB 70, 45, 85, 60, 95, 58, 80, 50, 60, 99
+Choosen DB 10 DUP(0)
+TotalBill DW 0
+; Payment Output Messages
+NoReturnDueOutput DB ' NO return or due', 13h, 10h, '$'
+ChangeOutput DB ' Change: ', '$'
+DueOutput DB ' due : ', '$'
+PaymentPrompt DB 'Enter payment: $'
+; Prompts and Messages
+AvailableBooks DB 'Available Books In MUGGLE''S Library:', 0DH, 0AH, '$'
+ChoosePrompt DB 'Enter Book Number [0-9] OR Space to Finish: $'
+QuantityPrompt DB 'Quantity You Want?: $'
+ErrPrompt DB 'Invalid Selection! Try Again. $'
+TotalBillPrompt DB 0DH, 0AH, ' YOUR TOTAL BILL IS: $', 0
+ThanksPrompt DB 0DH, 0AH, ' ==== THANK YOU FOR SHOPPING! ====', 0DH, 0AH, '$'
+CurrencyLabel DB ' TK', '$'
+; Login Credentials
+CorrectPassword DB 'mug', '$'
+; Variables for Payment Processing
+StoreNum DB 0
+StoreQty DB 0
+PaymentAmount DW 0
+DiffAmount DW 0
+.CODE
+MAIN PROC
+; Initialize Data Segment
+MOV AX, @DATA
+MOV DS, AX
+; Display Welcome Message
+LEA DX, WelcomePrompt
+MOV AH, 9
+INT 21H
+; Login Section
+CALL LOGIN_SECTION
+; Display Available Books
+CALL SHOW_BOOKS
+; Book Selection and Total Price Calculation
+CALL TOTAL_PRICE_CALC
+; Payment Processing
+CALL PAYMENT_PROCESS
+; Exit Program
+MOV AH, 4CH
+INT 21H
+MAIN ENDP
+; Login Section Procedure
+LOGIN_SECTION PROC
+; Prompt for Username
+LEA DX, LoginPrompt
+MOV AH, 9
+INT 21H
+MOV AH, 1
+INT 21H ; Dummy username input
+; Prompt for Password
+LEA DX, PasswordPrompt
+MOV AH, 9
+INT 21H
+; Read and Validate Password
+MOV SI, OFFSET CorrectPassword
+MOV CX, 3
+PASSWORD_LOOP:
+MOV AH, 1
+INT 21H
+MOV BL, AL
+CMP BL, [SI]
+JNE INVALID_LOGIN
+INC SI
+LOOP PASSWORD_LOOP
+; Successful Login
+LEA DX, SuccessLogin
+MOV AH, 9
+INT 21H
+RET
+INVALID_LOGIN:
+LEA DX, FailedLogin
+MOV AH, 9
+INT 21H
+MOV AH, 4CH
+INT 21H
+LOGIN_SECTION ENDP
+; Show Available Books Procedure
+SHOW_BOOKS PROC
+; Display Available Books Header
+LEA DX, AvailableBooks
+MOV AH, 9
+INT 21H
+; Display Book List
+LEA DX, BookList
+MOV AH, 9
+INT 21H
+RET
+SHOW_BOOKS ENDP
+; Total Price Calculation Procedure
+TOTAL_PRICE_CALC PROC
+; Initialize Total Bill to 0
+MOV TotalBill, 0
+MOV CX, 10
+CHOOSE_LOOP:
+; New line
+MOV AH, 02H
+MOV DL, 0DH
+INT 21H
+MOV DL, 0AH
+INT 21H
+; Prompt for Book Selection
+LEA DX, ChoosePrompt
+MOV AH, 9
+INT 21H
+; Read Selection
+MOV AH, 1
+INT 21H
+CMP AL, 20h
+JE PRICE_CALC_EXIT
+; Convert to number
+SUB AL, '0'
+MOV StoreNum, AL
+; Validate Book Number
+CMP StoreNum, 0
+JL INVALID_SELECTION
+CMP StoreNum, 9
+JG INVALID_SELECTION
+; New line
+MOV AH, 02H
+MOV DL, 0DH
+INT 21H
+MOV DL, 0AH
+INT 21H
+; Prompt for Quantity
+LEA DX, QuantityPrompt
+MOV AH, 9
+INT 21H
+; Read Quantity
+MOV AH, 1
+INT 21H
+SUB AL, '0'
+MOV StoreQty, AL
+; Update Choosen Array
+MOV BX, 0
+MOV BL, StoreNum
+MOV SI, OFFSET Choosen
+MOV AL, [SI + BX]
+ADD AL, StoreQty
+MOV [SI + BX], AL
+; Calculate Price
+MOV SI, OFFSET StorePrice
+MOV AL, [SI + BX]
+MOV CL, StoreQty
+MUL CL
+ADD TotalBill, AX
+JMP CHOOSE_LOOP
+INVALID_SELECTION:
+; Display Error
+MOV AH, 02H
+MOV DL, 0DH
+INT 21H
+MOV DL, 0AH
+INT 21H
+LEA DX, ErrPrompt
+MOV AH, 9
+INT 21H
+JMP CHOOSE_LOOP
+PRICE_CALC_EXIT:
+RET
+TOTAL_PRICE_CALC ENDP
+; Payment Processing Procedure
+PAYMENT_PROCESS PROC
+; Display Total Bill
+MOV AH, 02H
+MOV DL, 0DH
+INT 21H
+MOV DL, 0AH
+INT 21H
+; Prompt Total Bill
+LEA DX, TotalBillPrompt
+MOV AH, 9
+INT 21H
+MOV AX, TotalBill
+CALL SHOW_BOOK_NUM
+; Display Currency Label
+MOV DX, OFFSET CurrencyLabel
+MOV AH, 9
+INT 21H
+; Prompt for Payment
+LEA DX, PaymentPrompt
+MOV AH, 9
+INT 21H
+; Read Payment Amount (3 digits)
+MOV AH, 1
+INT 21H
+SUB AL, 30H
+MOV BL, 100
+MUL BL
+MOV PaymentAmount, AX ; Save to PaymentAmount instead of DiffAmount
+; Second Digit
+MOV AH, 1
+INT 21H
+SUB AL, 30H
+MOV BL, 10
+MUL BL
+ADD PaymentAmount, AX ; Add to PaymentAmount
+; Third Digit
+MOV AH, 1
+INT 21H
+SUB AL, 30H
+MOV AH, 0
+ADD PaymentAmount, AX ; Add to PaymentAmount
+; Compare Payment with Total Bill
+MOV AX, PaymentAmount
+MOV BX, TotalBill
+CMP AX, BX
+JE EQUAL_PAYMENT
+JB DUE_PAYMENT ; If Payment < Total, jump to due payment
+; Overpayment (Change)
+SUB AX, BX ; Calculate change (Payment - Total)
+MOV DiffAmount, AX
+LEA DX, ChangeOutput
+MOV AH, 9
+INT 21H
+MOV AX, DiffAmount
+CALL SHOW_BOOK_NUM ; Show the change amount
+LEA DX, CurrencyLabel
+MOV AH, 9
+INT 21H
+JMP FINAL_EXIT
+EQUAL_PAYMENT:
+LEA DX, NoReturnDueOutput
+MOV AH, 9
+INT 21H
+JMP FINAL_EXIT
+DUE_PAYMENT:
+SUB BX, AX ; Calculate due (Total - Payment)
+MOV DiffAmount, BX
+LEA DX, DueOutput
+MOV AH, 9
+INT 21H
+MOV AX, DiffAmount
+CALL SHOW_BOOK_NUM ; Show the due amount
+LEA DX, CurrencyLabel
+MOV AH, 9
+INT 21H
+FINAL_EXIT:
+; Display Thank You Message
+LEA DX, ThanksPrompt
+MOV AH, 9
+INT 21H
+RET
+PAYMENT_PROCESS ENDP
+; Show Book Number Procedure (Number Printing)
+SHOW_BOOK_NUM PROC
+PUSH AX
+PUSH DX
+MOV BX, 10
+MOV CX, 0 ; Clear CX
+SHOW_BOOK_DIGIT:
+MOV DX, 0
+DIV BX
+PUSH DX
+INC CX
+CMP AX, 0
+JNZ SHOW_BOOK_DIGIT
+PRINT_DIGIT:
+POP DX
+ADD DL, '0'
+MOV AH, 2
+INT 21H
+LOOP PRINT_DIGIT
+POP DX
+POP AX
+RET
+SHOW_BOOK_NUM ENDP
+END MAIN
